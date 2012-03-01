@@ -10,7 +10,8 @@
 
 /******** USER CONFIGURATION ********/
 // ENTER THE TWITTER USERNAME HERE
-$screename = 'test';
+$screenname = 'test';
+$length = strlen($screenname) + 2;
 
 // Required for parsing the original RSS feed
 // Download at https://github.com/collegeman/coreylib
@@ -20,7 +21,7 @@ require_once('coreylib/coreylib.php');
 defined("ENT_XML1") or define("ENT_XML1",16);
 
 // Get the RSS feed object
-$string = 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name=' . $screename;
+$string = 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name=' . $screenname;
 $api = new clApi($string);
 
 // Delete file if exists
@@ -33,9 +34,9 @@ if (file_exists($filePath)) {
 $rss = '<?xml version="1.0" encoding="UTF-8" ?>
         <rss version="2.0">
             <channel>
-                <title>Twitter / ' . $screename . '</title>
-                <link>http://twitter.com/' . $screename . '</link>
-                <description>Twitter updates from ' . $screename . '</description>
+                <title>Twitter / ' . $screenname . '</title>
+                <link>http://twitter.com/' . $screenname . '</link>
+                <description>Twitter updates from ' . $screenname . '</description>
                 <language>en-us</language>
                 <ttl>40</ttl>
             ';
@@ -48,9 +49,9 @@ if ($feed = $api->parse()) {
         $title = $entry->get('title');
         $desc  = $entry->get('description');
         
-        // Strip the first 12 characters
-        $title = substr($title, 12);
-        $desc  = substr($desc, 12);
+        // Strip the first $length characters
+        $title = substr($title, $length);
+        $desc  = substr($desc, $length);
         
         // Replace all links with HTML links
 		$desc = preg_replace("/([\w]+:\/\/[\w-?&;#~=\.\/\@]+[\w\/])/i","<a target=\"_blank\" href=\"$1\">$1</a>", $desc);
