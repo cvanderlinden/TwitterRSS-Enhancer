@@ -1,0 +1,20 @@
+TwitterRSS-Enhancer
+================================
+
+Description
+-------------------------
+Imports a twitter RSS, parses the RSS into an object, rewrites all the links, usernames, and hashtags to be links outputs the rest to screen and to the twitter.rss file.
+
+Requirements
+-------------------------
+Webserver (Apache/Ngix/etc.)
+PHP 5.x.x
+Coreylib - https://github.com/collegeman/coreylib
+
+Setup
+-------------------------
+Change the $screenname varible to the twitter username you are looking for
+
+Notes
+-------------------------
+If you want to update the twitter.rss feed with new results then call the main file twitterrss-enhancer.php and it will rewrite the twitter.rss feed with new tweets.
