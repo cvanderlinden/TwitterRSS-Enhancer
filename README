@@ -13,7 +13,7 @@ OAuth Application
 
 Setup
 -------------------------
-Change the $screenname varible to the twitter username you are looking for
+Complete the user configuration in the PHP file
 
 Notes
 -------------------------
