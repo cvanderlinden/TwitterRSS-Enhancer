@@ -1,4 +1,4 @@
-TwitterRSS-Enhancer
+TwitterRSS-Enhancer v1
 ================================
 
 Description
@@ -10,6 +10,7 @@ Requirements
 Webserver (Apache/Ngix/etc.)
 PHP 5.x.x
 Coreylib - https://github.com/collegeman/coreylib
+Non-OAuth
 
 Setup
 -------------------------
