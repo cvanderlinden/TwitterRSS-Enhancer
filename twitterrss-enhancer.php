@@ -6,100 +6,159 @@
 **	Imports a twitter RSS, parses the RSS into an object,
 **	rewrites all the links, usernames, and hashtags to be links
 ** 	outputs the rest to screen and to the twitter.rss file.
+**  Uses OAuth
 */
 
 /******** USER CONFIGURATION ********/
-// ENTER THE TWITTER USERNAME HERE
-$screenname = 'test';
-$length = strlen($screenname) + 2;
+$screenName = "";
+$tweetCount = 5;
+$oauth_access_token = "";
+$oauth_access_token_secret = "";
+$consumer_key = "";
+$consumer_secret = "";
+/******** USER CONFIGURATION ********/
 
-// Required for parsing the original RSS feed
-// Download at https://github.com/collegeman/coreylib
-require_once('coreylib/coreylib.php');
-
-// Defined XML1 encoding constant
-defined("ENT_XML1") or define("ENT_XML1",16);
-
-// Get the RSS feed object
-$string = 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name=' . $screenname;
-$api = new clApi($string);
-
-// Delete file if exists
-$filePath = "twitter.rss";
-if (file_exists($filePath)) {
-    unlink($filePath);
+function buildBaseString($baseURI, $method, $params) {
+    $r = array();
+    ksort($params);
+    foreach($params as $key=>$value){
+        $r[] = "$key=" . rawurlencode($value);
+    }
+    return $method."&" . rawurlencode($baseURI) . '&' . rawurlencode(implode('&', $r));
 }
 
-// The header for the new RSS feed
-$rss = '<?xml version="1.0" encoding="UTF-8" ?>
-        <rss version="2.0">
-            <channel>
-                <title>Twitter / ' . $screenname . '</title>
-                <link>http://twitter.com/' . $screenname . '</link>
-                <description>Twitter updates from ' . $screenname . '</description>
-                <language>en-us</language>
-                <ttl>40</ttl>
-            ';
-// Parse the RSS feed into individual objects and manipulate them
-if ($feed = $api->parse()) {
-    // Now we have data...
-    // Get the high level object, in this case, this is called item
-    foreach ($feed->get('item') as $entry) {
-        // Get the title/content of the tweet
-        $title = $entry->get('title');
-        $desc  = $entry->get('description');
-        
-        // Strip the first $length characters
-        $title = substr($title, $length);
-        $desc  = substr($desc, $length);
-        
-        // Replace all links with HTML links
+function buildAuthorizationHeader($oauth) {
+    $r = 'Authorization: OAuth ';
+    $values = array();
+    foreach($oauth as $key=>$value)
+        $values[] = "$key=\"" . rawurlencode($value) . "\"";
+    $r .= implode(', ', $values);
+    return $r;
+}
+
+$oauth = array( 'oauth_consumer_key' => $consumer_key,
+                'oauth_nonce' => time(),
+                'oauth_signature_method' => 'HMAC-SHA1',
+                'oauth_token' => $oauth_access_token,
+                'oauth_timestamp' => time(),
+                'oauth_version' => '1.0');
+
+/****** TIMELINE START ******/
+
+$url = "https://api.twitter.com/1.1/statuses/user_timeline.json";
+								
+$base_info = buildBaseString($url, 'GET', $oauth);
+$composite_key = rawurlencode($consumer_secret) . '&' . rawurlencode($oauth_access_token_secret);
+$oauth_signature = base64_encode(hash_hmac('sha1', $base_info, $composite_key, true));
+$oauth['oauth_signature'] = $oauth_signature;
+
+// Make Requests
+$header = array(buildAuthorizationHeader($oauth), 'Expect:');
+$options = array( CURLOPT_HTTPHEADER => $header,
+				  //CURLOPT_POSTFIELDS => $postfields,
+                  CURLOPT_HEADER => false,
+                  CURLOPT_URL => $url,
+                  CURLOPT_RETURNTRANSFER => true,
+                  CURLOPT_SSL_VERIFYPEER => false);
+
+$feed = curl_init();
+curl_setopt_array($feed, $options);
+$json = curl_exec($feed);
+curl_close($feed);
+
+$twitter_data = json_decode($json);
+$count = 0;
+$rss = '<ul>';
+
+for ($i = 0; $i <= $tweetCount; $i++) {
+		$desc  = $twitter_data[$i]->text;
+		$link  = $twitter_data[$i]->id_str;
+		$link  = "https://twitter.com/RoyalRoads/status/" . $link;
+		$date = $twitter_data[$i]->created_at;
+		
+		// Replace all links with HTML links
 		$desc = preg_replace("/([\w]+:\/\/[\w-?&;#~=\.\/\@]+[\w\/])/i","<a target=\"_blank\" href=\"$1\">$1</a>", $desc);
 		// Replace all usernames with a linked username
-        $desc = preg_replace('/@(\w+)\b/i', '<a target="_blank" href="http://twitter.com/$1">@$1</a>', $desc);
+		$desc = preg_replace('/@(\w+)\b/i', '<a target="_blank" href="http://twitter.com/$1">@$1</a>', $desc);
 		// Replace all hashtags with linked hashtags
 		$desc = preg_replace('/#(\w+)\b/i', '<a target="_blank" href="http://twitter.com/#!/search/%23$1">#$1</a>', $desc);
 		
-        // & is a bad character in XML encoding
-        $title = str_replace('&', '&amp;', $title);
-        $desc  = str_replace('&', '&amp;', $desc);
+		// Get the current date/time
+		$curDate = date("r");
 		
-		// XML Encode the description for proper output
-		$desc = htmlspecialchars($desc, ENT_XML1);
-        
-        // Get the link for the tweet
-        $link = $entry->get('link');
-        
-        // Get the date the tweet as published
-        $date = $entry->get('pubDate');
-        
-		// Build the output
-        $rss .= '<item>
-                    <title>' . $title . '</title>
-                    ';
-        $rss .= '<description>' . $desc . '</description>
-                ';
-        $rss .= '    <pubDate>' . $date . '</pubDate>
-                ';
-        $rss .= '    <guid>' . $link . '</guid>
-                ';
-        $rss .= '    <link>' . $link . '</link>
-                </item>
-                ';
-    }
-    
-} else {
-    // something went wrong
-}
-// Close the entire rss feed
-$rss .= '</channel>
-    </rss>';
-	
-// Print it
-$fh = fopen($filePath, 'w') or die("can't open file");
-fwrite($fh, $rss);
-echo $rss;
+		// Subtract the times to get timeAgo
+		$diff = strtotime($curDate) - strtotime($date);
+		
+		// Initialize and clean the textAgo varible
+		$textAgo = "";
+		
+		// Convert date timestap into years, months, days, hours, minutes
+		$years   = floor($diff / (365*60*60*24)); 
+		$months  = floor(($diff - $years * 365*60*60*24) / (30*60*60*24)); 
+		$days    = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
+		$hours   = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24 - $days*60*60*24)/ (60*60));
+		$minutes = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24 - $days*60*60*24 - $hours*60*60)/ 60);
 
-// The header
-header("Content-Type: application/xml; charset=ISO-8859-1");
+		if ($years > 0) {
+			if ($years > 1) {
+				$textAgo .= $years . " years ";
+			}
+			else {
+				$textAgo .= $years . " year ";
+			}
+		}
+		if ($months > 0) {
+			if ($months > 1) {
+				$textAgo .= $months . " months ";
+			}
+			else {
+				$textAgo .= $months . " month ";
+			}
+		}
+		if ($days > 0) {
+			if ($days > 1) {
+				$textAgo .= $days . " days ";
+			}
+			else {
+				$textAgo .= $days . " day ";
+			}
+		}
+		if ($hours > 0) {
+			if ($hours > 1) {
+				$textAgo .= $hours . " hours ";
+			}
+			else {
+				$textAgo .= $hours . " hour ";
+			}
+		}
+		if ($minutes > 0) {
+			if ($minutes > 1) {
+				$textAgo .= $minutes . " minutes ";
+			}
+			else {
+				$textAgo .= $minutes . " minute ";
+			}
+		}
+		if ($minutes == 0 && $hours == 0 && $days == 0 && $months == 0 && $years == 0) {
+			$textAgo .= " a few seconds ";
+		}
+		$rss .= '<li>' . $desc . '<span><a href="' . $link . '"> ' . $textAgo . '</a>ago by <a target="blank" href="https://twitter.com/#!/' . $screenName . '">' . $screenName . '</a></span></li>';
+		$count++;
+}
+	// Close the list with a </ul> tag
+	$rss .= '</ul>';
+	
+    // FILE WRITE	
+	// Delete file if exists
+	//$filePath = "../../files/twitter.html";
+	//if (file_exists($filePath)) {
+	//	unlink($filePath);
+	//}	
+	// Send to file, and echo to screen
+	//$fh = fopen($filePath, 'w') or die("can't open file");
+	//fwrite($fh, $rss);
+	
+	echo $rss;
+		
+	/****** TIMELINE END ******/
 ?>
